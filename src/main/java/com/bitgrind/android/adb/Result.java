@@ -67,7 +67,7 @@ public class Result<T> implements Closeable {
         return exception != null;
     }
 
-    boolean hasErrror() {
+    boolean hasError() {
         return code != null;
     }
 
