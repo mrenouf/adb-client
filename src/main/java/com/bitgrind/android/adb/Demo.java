@@ -19,7 +19,7 @@ public class Demo {
         AsyncProtocol proto = new AsyncProtocol(new NetworkChannelSupplier(addr));
         System.err.println(proto.getVersion());
         System.err.println(proto.getVersion());
-        proto.listDevices();
+        System.err.println(proto.listDevices());
         //new HexDumpEncoder().encode(new StringBufferInputStream(proto.listDevices()), System.out);
     }
 }

@@ -1,6 +1,7 @@
 package com.bitgrind.android.adb;
 
 import com.google.common.base.Preconditions;
+import com.google.common.io.Closeables;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -41,10 +42,11 @@ public class Result<T> implements Closeable {
         return value;
     }
 
-    public void throwIfException() throws Exception {
-        if (exception != null) {
-            throw exception;
+    public Exception getException() {
+        if (ok() || exception == null) {
+            throw new IllegalStateException("No exception to return!");
         }
+        return exception;
     }
 
     public T get() {
@@ -56,19 +58,7 @@ public class Result<T> implements Closeable {
     }
 
     boolean ok() {
-        return code == null && value != null;
-    }
-
-    boolean hasValue() {
-        return value != null;
-    }
-
-    boolean hasException() {
-        return exception != null;
-    }
-
-    boolean hasError() {
-        return code != null;
+        return code == null && exception == null;
     }
 
     public <T> Result<T> asError() {
@@ -76,7 +66,7 @@ public class Result<T> implements Closeable {
     }
 
     public String toString() {
-        if (hasValue()) {
+        if (code == null && exception == null) {
             return "Result[value: " + value + "]";
         } else {
             return "Result[errorCode: " + code + ", exception: " + exception + "]";
@@ -84,9 +74,13 @@ public class Result<T> implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (value instanceof Closeable) {
-            ((Closeable) value).close();
+            try {
+                ((Closeable) value).close();
+            } catch (IOException e) {
+                // Ignore
+            }
         }
     }
 }

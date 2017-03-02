@@ -1,21 +1,16 @@
 package com.bitgrind.android.adb;
 
 import com.google.common.base.Splitter;
-import sun.net.ConnectionResetException;
 
-import java.io.*;
-import java.net.ConnectException;
-import java.net.NoRouteToHostException;
-import java.net.PortUnreachableException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
-
-import static java.lang.String.format;
 
 public class AsyncProtocol {
     private static final int BUFFER_SIZE = 1024;
@@ -88,39 +83,67 @@ public class AsyncProtocol {
                 return channel.asError();
             }
             Result<String> result = command(channel.get(), "host:version");
-            if (result.hasValue()) {
+            if (result.ok()) {
                 return Result.ofValue(Integer.parseInt(result.get(), 16));
             } else {
                 return result.asError();
             }
-        } catch (IOException e) {
-            return Result.error(ErrorCode.IO_EXCEPTION, e);
         }
     }
 
     public Result<String> kill() {
-        try (Result<ByteChannel> channel = channelSupplier.get()) {
-            if (!channel.ok()) {
-                return channel.asError();
+        try (Result<ByteChannel> channelResult = channelSupplier.get()) {
+            if (!channelResult.ok()) {
+                return channelResult.asError();
             }
-            return command(channel.get(), "host:kill");
-        } catch (IOException e) {
-            return Result.error(ErrorCode.IO_EXCEPTION, e);
+            return command(channelResult.get(), "host:kill");
         }
     }
 
     public Result<String> listDevices() {
-        try (Result<ByteChannel> channel = channelSupplier.get()) {
-            if (!channel.ok()) {
-                return channel.asError();
+        try (Result<ByteChannel> channelResult = channelSupplier.get()) {
+            if (!channelResult.ok()) {
+                return channelResult.asError();
             }
-            Result<String> result = command(channel.get(), "host:devices");
+            Result<String> result = command(channelResult.get(), "host:devices-l");
+            if (!result.ok()) {
+                return result.asError();
+            }
+
+            Iterable<String> lines = Splitter.on('\n').omitEmptyStrings().split(result.get());
+            for (String deviceText : lines) {
+                // Serial is formatted to a field width of 22 characters, left-aligned.
+                String serial = deviceText.substring(0, 22).trim();
+                // Device state follows after a space.
+                int stateEnd = deviceText.indexOf(' ', 23);
+                String state = deviceText.substring(23, stateEnd);
+                // The next token is usually devpath, if the device is connected via usb. Otherwise it's omitted.
+                // The format is always 'usb:#-#' but this is not guaranteed, so be extra careful here.
+                String valuesText = deviceText.substring(stateEnd + 1);
+                int endNextToken = valuesText.indexOf(' ');
+                String nextToken = valuesText.substring(0, endNextToken == -1 ? valuesText.length() : endNextToken);
+                String devPath = null;
+                // If this isn't the product value, it must be the devpath.
+                if (!nextToken.startsWith("product")) {
+                    devPath = nextToken;
+                    if (endNextToken != -1) {
+                        valuesText = valuesText.substring(endNextToken + 1);
+                    } else {
+                        valuesText = "";
+                    }
+                }
+                Map<String, String> values = Collections.emptyMap();
+                if (!valuesText.isEmpty()) {
+                    values = Splitter.on(' ').withKeyValueSeparator(':').split(valuesText);
+                }
+
+                Device d = new Device(serial); /* serial */
+                System.err.println("serial=" + serial);
+                System.err.println("devpath=" + devPath);
+                System.err.println("values=" + values);
+            }
             // TODO: split, create device list
             return result;
-        } catch (ConnectException|NoRouteToHostException|ConnectionResetException|PortUnreachableException e) {
-            return Result.error(ErrorCode.CONNECTION_FAILED, e);
-        } catch (IOException e) {
-            return Result.error(ErrorCode.IO_EXCEPTION, e);
         }
     }
 }
