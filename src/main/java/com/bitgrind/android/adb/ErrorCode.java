@@ -6,5 +6,6 @@ package com.bitgrind.android.adb;
 public enum ErrorCode {
     IO_EXCEPTION,
     COMMAND_FAILED,
-    CONNECTION_FAILED;
+    CONNECTION_FAILED,
+    PARSE_ERROR;
 }
