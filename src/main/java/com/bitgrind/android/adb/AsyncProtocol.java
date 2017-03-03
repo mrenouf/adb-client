@@ -19,7 +19,8 @@ public class AsyncProtocol {
     private final byte[] array = new byte[BUFFER_SIZE];
     private final ByteBuffer buffer = ByteBuffer.wrap(array);
     private final Supplier<Result<ByteChannel>> channelSupplier;
-    Function<String, Device> parseDeviceLine = deviceText -> {
+
+    private final Function<String, Device> parseDeviceLine = deviceText -> {
         // Serial is formatted to a field width of 22 characters, left-aligned.
         String serial = deviceText.substring(0, 22).trim();
         // Device state follows after a space.
@@ -98,7 +99,7 @@ public class AsyncProtocol {
         channel.write(buffer);
     }
 
-    protected Result<String> command(ByteChannel channel, String msg) {
+    private Result<String> command(ByteChannel channel, String msg) {
         try {
             writeMessage(channel, msg);
             Status status = readStatus(channel);
@@ -141,6 +142,32 @@ public class AsyncProtocol {
                 return channelResult.asError();
             }
             Result<String> result = command(channelResult.get(), "host:devices-l");
+            if (!result.ok()) {
+                return result.asError();
+            }
+            List<Device> devices =
+                    Arrays.stream(result.get()
+                            .split("\n"))
+                            .map(parseDeviceLine)
+                            .collect(Collectors.toList());
+            return Result.ofValue(devices);
+        }
+    }
+
+/*
+0012host:track-devices
+OKAY0015emulator-5554	device
+00000016emulator-5554	offline
+0015emulator-5554	device
+0000
+*/
+
+    public Result<List<Device>> trackDevices() {
+        try (Result<ByteChannel> channelResult = channelSupplier.get()) {
+            if (!channelResult.ok()) {
+                return channelResult.asError();
+            }
+            Result<String> result = command(channelResult.get(), "host:track-devices");
             if (!result.ok()) {
                 return result.asError();
             }

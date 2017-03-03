@@ -14,6 +14,19 @@ public class Device {
     public Device(String serial) {
         this.serial = serial;
     }
+
+    @Override
+    public String toString() {
+        return "Device{" +
+                "serial='" + serial + '\'' +
+                ", state=" + state +
+                ", devpath='" + devpath + '\'' +
+                ", product='" + product + '\'' +
+                ", model='" + model + '\'' +
+                ", device='" + device + '\'' +
+                '}';
+    }
+
     // platform/system/core/adb/transport.cpp atransport::connection_state_name()
     public enum State {
         offline,
@@ -25,5 +38,4 @@ public class Device {
         unauthorized,
         unknown
     }
-
 }
