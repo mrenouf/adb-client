@@ -4,10 +4,16 @@ package com.bitgrind.android.adb;
  * Created by mrenouf on 3/1/17.
  */
 public class Device {
-    public Device(String serialNumber) {
-        this.serialNumber = serialNumber;
-    }
+    String serial;
+    State state;
+    String devpath;
+    String product;
+    String model;
+    String device;
 
+    public Device(String serial) {
+        this.serial = serial;
+    }
     // platform/system/core/adb/transport.cpp atransport::connection_state_name()
     public enum State {
         offline,
@@ -17,14 +23,7 @@ public class Device {
         recovery,
         sideload,
         unauthorized,
-        unknown;
+        unknown
     }
-
-    String serialNumber;
-    State state;
-    String devpath;
-    String product;
-    String model;
-    String device;
 
 }

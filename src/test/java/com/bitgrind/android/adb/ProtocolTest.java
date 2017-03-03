@@ -6,12 +6,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.io.IOException;
 import java.nio.channels.ByteChannel;
+import java.util.List;
 import java.util.function.Supplier;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
 
 /**
  * Created by mrenouf on 2/25/17.
@@ -75,8 +74,32 @@ public class ProtocolTest {
 
         channel.setReadBuffer(String.format("OKAY" + "%04X%s", response.length(), response));
         AsyncProtocol proto = new AsyncProtocol(supplier);
-        Result<String> resp = proto.listDevices();
+        Result<List<Device>> devicesResult = proto.listDevices();
         assertEquals("000ehost:devices-l", channel.getWriteBufferAsString());
         assertFalse(channel.isOpen());
+
+        assertTrue(devicesResult.ok());
+        assertNotNull(devicesResult.get());
+
+        List<Device> devices = devicesResult.get();
+        assertEquals(3, devices.size());
+
+        assertEquals("device 0, serial", "HT6CP0204170", devices.get(0).serial);
+        assertEquals("device 0, state", Device.State.unauthorized, devices.get(0).state);
+        assertEquals("device 0, devpath", "usb:1-14", devices.get(0).devpath);
+
+        assertEquals("device 1, serial", "HT6CP0204170", devices.get(1).serial);
+        assertEquals("device 1, state", Device.State.device, devices.get(1).state);
+        assertEquals("device 1, devpath", "<usbdevpath>", devices.get(1).devpath);
+        assertEquals("device 1, product", "marlin", devices.get(1).product);
+        assertEquals("device 1, model", "Pixel_XL", devices.get(1).model);
+        assertEquals("device 1, device", "marlin", devices.get(1).device);
+
+        assertEquals("device 2, serial", "emulator-5554", devices.get(2).serial);
+        assertEquals("device 2, state", Device.State.device, devices.get(2).state);
+        assertNull("device 2, devpath", devices.get(2).devpath);
+        assertEquals("device 2, product", "sdk_google_phone_x86", devices.get(2).product);
+        assertEquals("device 2, model", "Android_SDK_built_for_x86", devices.get(2).model);
+        assertEquals("device 2, device", "generic_x86", devices.get(2).device);
     }
 }
