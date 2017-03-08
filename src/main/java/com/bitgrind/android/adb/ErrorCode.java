@@ -5,7 +5,8 @@ package com.bitgrind.android.adb;
  */
 public enum ErrorCode {
     IO_EXCEPTION,
+    INTERRUPTED,
     COMMAND_FAILED,
     CONNECTION_FAILED,
-    PARSE_ERROR;
+    PARSE_ERROR, NOT_FOUND
 }

@@ -1,7 +1,6 @@
 package com.bitgrind.android.adb;
 
 import com.google.common.base.Preconditions;
-import com.google.common.io.Closeables;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -20,7 +19,7 @@ public class Result<T> implements Closeable {
     }
 
     public static <T> Result<T> ofValue(@NonNull T value) {
-        return new Result<T>(Preconditions.checkNotNull(value), null, null);
+        return new Result<T>(/*Preconditions.checkNotNull(*/value/*)*/, null, null);
     }
 
     public static <T> Result<T> exception(@NonNull Exception exception) {

@@ -103,7 +103,7 @@ public class AsyncProtocol {
         channel.write(buffer);
     }
 
-    private static Result<String> command(ByteChannel channel, ByteBuffer buffer, String msg) {
+    static Result<String> command(ByteChannel channel, ByteBuffer buffer, String msg) {
         try {
             writeMessage(channel, buffer, msg);
             Status status = readStatus(channel, buffer);
@@ -177,7 +177,7 @@ OKAY0015emulator-5554	device
             Status status = readStatus(channelResult.get(), buffer);
 
             if (status.isOk()) {
-                return Result.ofValue(new DeviceTracker(channelResult.get()));
+                return null;//Result.ofValue(new DeviceTracker(channelResult.get()));
             } else {
                 return Result.error(ErrorCode.COMMAND_FAILED, new CommandException(status.getMessage()));
             }
