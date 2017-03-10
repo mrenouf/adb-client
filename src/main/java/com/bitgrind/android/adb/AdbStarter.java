@@ -8,14 +8,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 public class AdbStarter {
+    private static final String ADB_EXECUTABLE = isWindows() ? "adb.exe" : "adb";
+    private static final Pattern PATTERN_PATHSEP = Pattern.compile(Pattern.quote(File.pathSeparator));
 
     private static final Pattern VERSION =
             Pattern.compile("version ([0-9]+)\\.([0-9]+)\\.([0-9]+)");
+
+    private static boolean isWindows() {
+        String osName = System.getProperty("os.name");
+        return osName != null && osName.startsWith("Windows");
+    }
 
     private static Result<AdbVersion> getAdbVersion(Path adbPath) {
         try {
@@ -41,46 +48,62 @@ public class AdbStarter {
         }
     }
 
-    // First try to start adb from the path if it exists
-    public static boolean startAdb(Path adbPath) {
-        boolean started = false;
-        try {
-            System.err.println(getAdbVersion(adbPath.resolve("adb")));
-            if (Runtime.getRuntime().exec(new String[]{adbPath.resolve("adb").toString(), "start-server"}).waitFor() == 0) {
-                started = true;
-            }
-        } catch (IOException e) {
-        } catch (InterruptedException e) {
+    private static Optional<Path> findExecutableInPath(String name) {
+        //String path = System.getenv("PATH");
+        String path = "/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/usr/lib/jvm/java-8-oracle/bin:/usr/lib/jvm/java-8-oracle/db/bin:/usr/lib/jvm/java-8-oracle/jre/bin:/home/mrenouf/Android/Sdk/tools:/home/mrenouf/Android/Sdk/platform-tools";
+        if (path == null) {
+            return Optional.empty();
         }
-        return started;
-    }
-
-    public static void main(String[] args) {
-        new AdbStarter().startAdb();
-    }
-
-    private void startAdb() {
-        Stream.of(System.getenv("PATH").split(Pattern.quote(File.pathSeparator)))
+        return PATTERN_PATHSEP.splitAsStream(path)
                 .map(Paths::get)
-                .filter(path -> Files.isExecutable(path.resolve("adb")))
+                .filter(pathElement -> Files.isExecutable(pathElement.resolve(name)))
                 .findFirst()
-                .ifPresent(AdbStarter::startAdb);
+                .map(pathElement -> pathElement.resolve(name));
     }
 
-    private static class AdbVersion {
-        final int major;
-        final int minor;
-        final int point;
+    public static void main(String[] args) throws Exception {
+        //System.out.println(new AdbStarter().startAdbFromPath(AdbVersion.ANY).checkedGet());
 
-        public AdbVersion(int major, int minor, int point) {
-            this.major = major;
-            this.minor = minor;
-            this.point = point;
-        }
+        final Path ADB_PATH = Paths.get("/home/mrenouf/Android/Sdk/platform-tools/adb");
+        System.out.println(new AdbStarter().startAdb(ADB_PATH, AdbVersion.ANY));
 
-        @Override
-        public String toString() {
-            return String.format("AdbVersion{%d.%d.%d}", major, minor, point);
+    }
+
+    public Result<AdbVersion> startAdbFromPath(AdbVersion minVersion) {
+        Optional<Path> adbExec = findExecutableInPath(ADB_EXECUTABLE);
+        if (!adbExec.isPresent()) {
+            return Result.error(ErrorCode.ADB_MISSING_FROM_PATH);
         }
+        return startAdb(adbExec.get(), minVersion);
+    }
+
+    public Result<AdbVersion> startAdb(Path path, AdbVersion minVersion) {
+        Result<AdbVersion> versionResult = getAdbVersion(path);
+        if (!Files.isExecutable(path)) {
+            return Result.error(ErrorCode.NOT_FOUND);
+        }
+        boolean started = false;
+        if (versionResult.ok()) {
+            AdbVersion version = versionResult.get();
+            if (version.lessThan(minVersion)) {
+                return Result.error(ErrorCode.ADB_VERSION_MISMATCH, new Exception(
+                        String.format("%s is version %s. %s or newer required", path, version, minVersion)));
+            }
+            try {
+                System.out.format("Starting adb (%s)\n", path);
+                if (Runtime.getRuntime().exec(new String[]{path.toString(), "start-server"}).waitFor() == 0) {
+                    started = true;
+                }
+                if (!started) {
+                    return Result.error(ErrorCode.ADB_FAILED_TO_START);
+                }
+                return Result.ofValue(versionResult.get());
+            } catch (InterruptedException e) {
+                return Result.exception(e);
+            } catch (IOException e) {
+                return Result.exception(e);
+            }
+        }
+        return versionResult.asError();
     }
 }
