@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static com.bitgrind.android.adb.AsyncProtocol.formatMessage;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -50,20 +51,20 @@ public class DeviceTrackerTest {
 
         channel.expectReads(1);
         channel.appendForRead("OKAY");
-        channel.appendForRead(Message.EMPTY);
+        channel.appendForRead(formatMessage(""));
         channel.awaitCompletedReads(25, TimeUnit.MILLISECONDS);
         verifyZeroInteractions(listener);
 
         reset(listener);
         channel.expectReads(1);
-        channel.appendForRead(Message.create("emulator-5554\tdevice"));
+        channel.appendForRead(formatMessage("emulator-5554\tdevice"));
         channel.awaitCompletedReads(25, TimeUnit.MILLISECONDS);
         channel.awaitBlockedRead(25, TimeUnit.MILLISECONDS);
         verify(listener).update(eq(Action.ADDED), eq("emulator-5554"), eq(State.device));
 
         reset(listener);
         channel.expectReads(1);
-        channel.appendForRead(Message.create("emulator-5554\toffline\nemulator-5556\tdevice\nemulator-5558\tdevice"));
+        channel.appendForRead(formatMessage("emulator-5554\toffline\nemulator-5556\tdevice\nemulator-5558\tdevice"));
         channel.awaitCompletedReads(25, TimeUnit.MILLISECONDS);
         channel.awaitBlockedRead(25, TimeUnit.MILLISECONDS);
         verify(listener).update(eq(Action.CHANGED), eq("emulator-5554"), eq(State.offline));
@@ -72,7 +73,7 @@ public class DeviceTrackerTest {
 
         reset(listener);
         channel.expectReads(1);
-        channel.appendForRead(Message.create("emulator-5556\tunauthorized"));
+        channel.appendForRead(formatMessage("emulator-5556\tunauthorized"));
         channel.awaitCompletedReads(25, TimeUnit.MILLISECONDS);
         channel.awaitBlockedRead(25, TimeUnit.MILLISECONDS);
         verify(listener).update(eq(Action.REMOVED), eq("emulator-5554"), isNull());
@@ -81,7 +82,7 @@ public class DeviceTrackerTest {
 
         reset(listener);
         channel.expectReads(1);
-        channel.appendForRead(Message.EMPTY);
+        channel.appendForRead(formatMessage(""));
         channel.awaitCompletedReads(25, TimeUnit.MILLISECONDS);
         channel.awaitBlockedRead(25, TimeUnit.MILLISECONDS);
         verify(listener).update(eq(Action.REMOVED), eq("emulator-5556"), isNull());

@@ -11,6 +11,7 @@ import java.nio.channels.ByteChannel;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static com.bitgrind.android.adb.AsyncProtocol.formatMessage;
 import static org.junit.Assert.*;
 
 /**
@@ -30,23 +31,30 @@ public class ProtocolTest {
     }
 
     @Test
+    public void testFormatMessage() {
+        assertEquals("0000", formatMessage(""));
+        assertEquals("000eThis is a test", formatMessage("This is a test"));
+        assertEquals("0013This is only a test", formatMessage("This is only a test"));
+    }
+
+        @Test
     public void testGetVersionSuccessful() {
         channel.appendForRead("OKAY00040ace");
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<Integer> version = proto.getVersion();
-        assertEquals("000chost:version", channel.getWriteBufferAsString());
+        assertEquals(formatMessage("host:version"), channel.getWriteBufferAsString());
         assertEquals(2766 /* 0xACE */, version.get().intValue());
         assertFalse(channel.isOpen());
     }
 
     @Test
     public void testGetVersionFailure() {
-        channel.appendForRead("FAIL" +
-                "000e" +
-                "Internal Error");
+        channel.appendForRead("FAIL");
+        channel.appendForRead(formatMessage("Internal Error"));
+
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<Integer> versionResult = proto.getVersion();
-        assertEquals("000chost:version", channel.getWriteBufferAsString());
+        assertEquals(formatMessage("host:version"), channel.getWriteBufferAsString());
         assertFalse(versionResult.ok());
         assertEquals(ErrorCode.COMMAND_FAILED, versionResult.error());
         assertEquals("Internal Error", versionResult.getException().getMessage());
@@ -55,7 +63,8 @@ public class ProtocolTest {
 
     @Test
     public void testKill() {
-        channel.appendForRead("OKAY" + "0000");
+        channel.appendForRead("OKAY");
+        channel.appendForRead(formatMessage(""));
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<String> resp = proto.kill();
         assertEquals(channel.getWriteBufferAsString(), "0009host:kill");
@@ -69,10 +78,11 @@ public class ProtocolTest {
             "HT6CP0204170           device <usbdevpath> product:marlin model:Pixel_XL device:marlin\n" +
             "emulator-5554          device product:sdk_google_phone_x86 model:Android_SDK_built_for_x86 device:generic_x86\n";
 
-        channel.appendForRead(String.format("OKAY" + "%04X%s", response.length(), response));
+        channel.appendForRead("OKAY");
+        channel.appendForRead(formatMessage(response));
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<List<Device>> devicesResult = proto.listDevices();
-        assertEquals("000ehost:devices-l", channel.getWriteBufferAsString());
+        assertEquals(formatMessage("host:devices-l"), channel.getWriteBufferAsString());
         assertFalse(channel.isOpen());
 
         assertTrue(devicesResult.ok());

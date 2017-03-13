@@ -70,7 +70,11 @@ public class AsyncProtocol {
     }
 
     static void writeMessage(ByteChannel channel, ByteBuffer buffer, String msg) throws IOException {
-        writeString(channel, buffer, String.format("%04x%s", msg.length(), msg));
+        writeString(channel, buffer, formatMessage(msg));
+    }
+
+    static String formatMessage(String message) {
+        return String.format("%04x%s", message.length(), message);
     }
 
     static Status readStatus(ByteChannel channel, ByteBuffer buffer) throws IOException {
