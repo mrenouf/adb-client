@@ -12,7 +12,12 @@ public class Device {
     String device;
 
     public Device(String serial) {
+        this(serial, null);
+    }
+
+    public Device(String serial, State state) {
         this.serial = serial;
+        this.state = state;
     }
 
     @Override
@@ -36,6 +41,14 @@ public class Device {
         recovery,
         sideload,
         unauthorized,
-        unknown
+        unknown;
+
+        public static State tryParse(String value, State defaultValue) {
+            try {
+                return State.valueOf(value);
+            } catch (IllegalArgumentException ex) {
+                return defaultValue;
+            }
+        }
     }
 }

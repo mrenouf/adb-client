@@ -157,13 +157,6 @@ public class AsyncProtocol {
         }
     }
 
-/*
-0012host:track-devices
-OKAY0015emulator-5554	device
-00000016emulator-5554	offline
-0015emulator-5554	device
-0000
-*/
 
     public Result<DeviceTracker> trackDevices() {
         try {

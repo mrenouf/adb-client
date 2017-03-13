@@ -1,5 +1,6 @@
 package com.bitgrind.android.adb;
 
+import com.bitgrind.android.adb.testing.FakeByteChannel;
 import com.google.common.base.Suppliers;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,8 +31,7 @@ public class ProtocolTest {
 
     @Test
     public void testGetVersionSuccessful() {
-        channel.open();
-        channel.setReadBuffer("OKAY00040ace");
+        channel.appendForRead("OKAY00040ace");
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<Integer> version = proto.getVersion();
         assertEquals("000chost:version", channel.getWriteBufferAsString());
@@ -41,8 +41,7 @@ public class ProtocolTest {
 
     @Test
     public void testGetVersionFailure() {
-        channel.open();
-        channel.setReadBuffer("FAIL" +
+        channel.appendForRead("FAIL" +
                 "000e" +
                 "Internal Error");
         AsyncProtocol proto = new AsyncProtocol(supplier);
@@ -56,8 +55,7 @@ public class ProtocolTest {
 
     @Test
     public void testKill() {
-        channel.open();
-        channel.setReadBuffer("OKAY" + "0000");
+        channel.appendForRead("OKAY" + "0000");
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<String> resp = proto.kill();
         assertEquals(channel.getWriteBufferAsString(), "0009host:kill");
@@ -66,13 +64,12 @@ public class ProtocolTest {
 
     @Test
     public void testListDevices() {
-        channel.open();
         final String response =
             "HT6CP0204170           unauthorized usb:1-14\n" +
             "HT6CP0204170           device <usbdevpath> product:marlin model:Pixel_XL device:marlin\n" +
             "emulator-5554          device product:sdk_google_phone_x86 model:Android_SDK_built_for_x86 device:generic_x86\n";
 
-        channel.setReadBuffer(String.format("OKAY" + "%04X%s", response.length(), response));
+        channel.appendForRead(String.format("OKAY" + "%04X%s", response.length(), response));
         AsyncProtocol proto = new AsyncProtocol(supplier);
         Result<List<Device>> devicesResult = proto.listDevices();
         assertEquals("000ehost:devices-l", channel.getWriteBufferAsString());
