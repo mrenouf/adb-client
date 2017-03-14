@@ -96,7 +96,7 @@ public class DeviceTrackerTest {
         deviceTracker.addListener(listener);
 
         AtomicInteger count = new AtomicInteger(0);
-        when(starter.startAdbFromPath(any(AdbVersion.class))).then(invocation -> {
+        when(starter.startAdb(any(AdbVersion.class))).then(invocation -> {
             if (count.incrementAndGet() == 3) {
                 when(supplier.get()).thenReturn(Result.ofValue(channel));
             }
@@ -105,7 +105,7 @@ public class DeviceTrackerTest {
 
         deviceTracker.start();
         channel.awaitBlockedRead(25, TimeUnit.MILLISECONDS);
-        verify(starter, times(3)).startAdbFromPath(any(AdbVersion.class));
+        verify(starter, times(3)).startAdb(any(AdbVersion.class));
     }
 
     @Test
@@ -116,7 +116,7 @@ public class DeviceTrackerTest {
         AtomicInteger count = new AtomicInteger(0);
         channel.close();
 
-        when(starter.startAdbFromPath(any(AdbVersion.class)))
+        when(starter.startAdb(any(AdbVersion.class)))
                 .thenReturn(Result.ofValue(AdbVersion.ANY))
                 .thenReturn(Result.ofValue(AdbVersion.ANY))
                 .thenAnswer(invocation -> {
@@ -126,6 +126,6 @@ public class DeviceTrackerTest {
         deviceTracker.start();
 
         channel.awaitBlockedRead(25, TimeUnit.MILLISECONDS);
-        verify(starter, times(3)).startAdbFromPath(any(AdbVersion.class));
+        verify(starter, times(3)).startAdb(any(AdbVersion.class));
     }
 }

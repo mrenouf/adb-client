@@ -60,6 +60,10 @@ public class DeviceTracker {
         listeners.remove(l);
     }
 
+    public void join() throws InterruptedException {
+        thread.join();
+    }
+
     private void run() {
         int connectFailures = 0;
         while (!shouldExit) {
@@ -86,7 +90,7 @@ public class DeviceTracker {
                     try {
                         Thread.sleep(retryPolicy.retryDelay(connectFailures));
                         System.out.println("Attempting to start ADB...");
-                        if (!adbStarter.startAdbFromPath(AdbVersion.ANY).ok()) {
+                        if (!adbStarter.startAdb(AdbVersion.ANY).ok()) {
                             System.out.println("Failed to exec adb. Exiting.");
                             shouldExit = true;
                             break;

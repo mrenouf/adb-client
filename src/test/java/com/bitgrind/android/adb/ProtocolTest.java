@@ -7,6 +7,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.ByteChannel;
 import java.util.List;
 import java.util.function.Supplier;
@@ -29,7 +31,6 @@ public class ProtocolTest {
         channel = new FakeByteChannel(1024);
         supplier = Suppliers.ofInstance(Result.ofValue(channel));
     }
-
     @Test
     public void testFormatMessage() {
         assertEquals("0000", formatMessage(""));
@@ -37,7 +38,16 @@ public class ProtocolTest {
         assertEquals("0013This is only a test", formatMessage("This is only a test"));
     }
 
-        @Test
+    @Test
+    public void testReadMessage() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        channel.appendForRead("OKAY");
+        channel.appendForRead(formatMessage(""));
+        Result<String> result = AsyncProtocol.command(channel, buffer, "command");
+    }
+
+
+    @Test
     public void testGetVersionSuccessful() {
         channel.appendForRead("OKAY00040ace");
         AsyncProtocol proto = new AsyncProtocol(supplier);
