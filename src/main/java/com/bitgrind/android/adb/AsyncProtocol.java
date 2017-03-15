@@ -2,6 +2,7 @@ package com.bitgrind.android.adb;
 
 import com.google.common.base.Splitter;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ByteChannel;
@@ -11,10 +12,12 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class AsyncProtocol {
     private static final int BUFFER_SIZE = 1024;
-
+    private static final Splitter NEWLINE = Splitter.on('\n').omitEmptyStrings();
     private final ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
     private final Supplier<Result<ByteChannel>> channelSupplier;
 
@@ -94,7 +97,11 @@ public class AsyncProtocol {
         buffer.clear();
         buffer.limit(length);
         while (length > 0) {
-            length -= channel.read(buffer);
+            int numRead = channel.read(buffer);
+            if (numRead < 0) {
+                throw new EOFException();
+            }
+            length -= numRead;
         }
         buffer.flip();
         return toString(buffer, StandardCharsets.UTF_8);
@@ -116,6 +123,8 @@ public class AsyncProtocol {
             } else {
                 return Result.error(ErrorCode.COMMAND_FAILED, new CommandException(status.getMessage()));
             }
+        } catch (NumberFormatException e) {
+            return Result.error(ErrorCode.PARSE_ERROR, e);
         } catch (IOException e) {
             return Result.error(ErrorCode.IO_EXCEPTION, e);
         }
@@ -135,12 +144,23 @@ public class AsyncProtocol {
         }
     }
 
-    public Result<String> kill() {
+    public Result<Void> kill() {
         try (Result<ByteChannel> channelResult = channelSupplier.get()) {
             if (!channelResult.ok()) {
                 return channelResult.asError();
             }
-            return command(channelResult.get(), buffer, "host:kill");
+            ByteChannel channel = channelResult.get();
+            writeMessage(channel, buffer, "host:kill");
+            Status status = readStatus(channel, buffer);
+            if (status.isOk()) {
+                return Result.ofValue(null);
+            } else {
+                return Result.error(ErrorCode.COMMAND_FAILED, new CommandException(status.getMessage()));
+            }
+        } catch (NumberFormatException e) {
+            return Result.error(ErrorCode.PARSE_ERROR, e);
+        } catch (IOException e) {
+            return Result.error(ErrorCode.IO_EXCEPTION, e);
         }
     }
 
@@ -154,7 +174,7 @@ public class AsyncProtocol {
                 return result.asError();
             }
             List<Device> devices =
-                    Arrays.stream(result.get().split("\n"))
+                    StreamSupport.stream(NEWLINE.split(result.get()).spliterator(), false)
                             .map(parseDeviceDetailLine)
                             .collect(Collectors.toList());
             return Result.ofValue(devices);

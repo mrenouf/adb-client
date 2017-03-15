@@ -31,6 +31,7 @@ public class ProtocolTest {
         channel = new FakeByteChannel(1024);
         supplier = Suppliers.ofInstance(Result.ofValue(channel));
     }
+
     @Test
     public void testFormatMessage() {
         assertEquals("0000", formatMessage(""));
@@ -46,6 +47,26 @@ public class ProtocolTest {
         Result<String> result = AsyncProtocol.command(channel, buffer, "command");
     }
 
+    @Test
+    public void testReadMessage_fail() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        channel.appendForRead("FAIL");
+        channel.appendForRead(formatMessage("Example Error"));
+        Result<String> result = AsyncProtocol.command(channel, buffer, "command");
+        assertEquals(ErrorCode.COMMAND_FAILED, result.error());
+        Exception exception = result.getException();
+        assertTrue(exception instanceof CommandException);
+        assertEquals("Example Error", exception.getMessage());
+    }
+
+    @Test
+    public void testReadMessage_invalidContent() {
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        channel.appendForRead("OKAY");
+        channel.appendForRead("XXXX----"); // expect [0-9]{4}....
+        Result<String> result = AsyncProtocol.command(channel, buffer, "command");
+        assertEquals(ErrorCode.PARSE_ERROR, result.error());
+    }
 
     @Test
     public void testGetVersionSuccessful() {
@@ -74,10 +95,10 @@ public class ProtocolTest {
     @Test
     public void testKill() {
         channel.appendForRead("OKAY");
-        channel.appendForRead(formatMessage(""));
         AsyncProtocol proto = new AsyncProtocol(supplier);
-        Result<String> resp = proto.kill();
-        assertEquals(channel.getWriteBufferAsString(), "0009host:kill");
+        Result<Void> resp = proto.kill();
+        assertTrue(resp.ok());
+        assertEquals(formatMessage("host:kill"), channel.getWriteBufferAsString());
         assertFalse(channel.isOpen());
     }
 
