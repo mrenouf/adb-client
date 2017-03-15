@@ -28,7 +28,9 @@ public class AdbStarter {
     }
 
     public AdbStarter(CommandExec commandExec, String adbPath) {
-        this.adbPath = Paths.get(adbPath);
+        if (adbPath != null) {
+            this.adbPath = Paths.get(adbPath);
+        }
         this.commandExec = commandExec;
     }
 
