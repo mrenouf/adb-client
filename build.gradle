@@ -2,7 +2,10 @@ group 'com.bitgrind.android.adb'
 version '1.0-SNAPSHOT'
 
 apply plugin: 'java'
+apply plugin:'application'
 
+mainClassName = "com.bitgrind.android.adb.Demo"
+//mainClassName = "com.bitgrind.android.usb.UdevRulesParser"
 //sourceCompatibility 1.8
 
 repositories {
@@ -12,8 +15,8 @@ repositories {
 
 dependencies {
     testCompile 'junit:junit:4.11'
-    compile 'com.google.guava:guava:21.0'
     testCompile 'org.mockito:mockito-core:2.7.11'
-    compile "org.checkerframework:checker-qual:2.1.8"
-
+    compile 'com.google.guava:guava:21.0'
+    compile 'org.usb4java:usb4java:1.2.0'
+    compile 'org.checkerframework:checker-qual:2.1.8'
 }
