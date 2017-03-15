@@ -130,7 +130,6 @@ public class DeviceTracker {
 
     private void initStates(ByteChannel channel, ByteBuffer buffer) throws IOException {
         String initialState = readMessage(channel, buffer);
-        System.out.println("initialState: '" + initialState + "'");
         for (String status : NEWLINE.split(initialState)) {
             parseState(status, deviceStates);
         }
@@ -140,7 +139,6 @@ public class DeviceTracker {
         Map<String, Device.State> updateStates = new HashMap<>();
         for (;;) {
             String update = readMessage(channel, buffer);
-            System.out.println("update: '" + update + "'");
             for (String status : NEWLINE.split(update)) {
                 parseState(status, updateStates);
             }
