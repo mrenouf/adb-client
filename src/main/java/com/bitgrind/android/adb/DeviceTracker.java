@@ -170,7 +170,9 @@ public class DeviceTracker {
     private Map<String, Action> diff(Map<String, Device.State> before, Map<String, Device.State> after) {
         Map<String, Action> diffs = new HashMap<>();
         for (String serial : Sets.intersection(before.keySet(), after.keySet())) {
-            diffs.put(serial, Action.CHANGED);
+            if (!before.get(serial).equals(after.get(serial))) {
+                diffs.put(serial, Action.CHANGED);
+            }
         }
         for (String serial : Sets.symmetricDifference(before.keySet(), after.keySet())) {
             diffs.put(serial, before.containsKey(serial) ? Action.REMOVED : Action.ADDED);
