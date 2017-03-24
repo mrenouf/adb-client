@@ -21,18 +21,40 @@ public class UsbTest {
             public int processEvent(Context context, Device device, int event, Object userData) {
                 if (event == LibUsb.HOTPLUG_EVENT_DEVICE_ARRIVED) {
                     DeviceDescriptor desc = new DeviceDescriptor();
-                    LibUsb.getDeviceDescriptor(device, desc);
-                    System.out.format("----------%04x %04x----------", desc.idVendor(), desc.idProduct());
-                    ConfigDescriptor cfg = new ConfigDescriptor();
-                    LibUsb.getActiveConfigDescriptor(device, cfg);
-                    DeviceHandle handle = new DeviceHandle();
-                    int open = LibUsb.open(device, handle);
-                    for (Interface i : cfg.iface()) {
-                        for (InterfaceDescriptor id : i.altsetting()) {
-                            System.out.println(LibUsb.getStringDescriptor(handle, id.iInterface()));
+                    if (LibUsb.getDeviceDescriptor(device, desc) == 0) {
+                        System.out.format("----------%04x %04x----------", desc.idVendor(), desc.idProduct());
+                        ConfigDescriptor cfg = new ConfigDescriptor();
+                        int err;
+                        if ((err = LibUsb.getActiveConfigDescriptor(device, cfg)) == 0) {
+                            DeviceHandle handle = new DeviceHandle();
+                            if ((err = LibUsb.open(device, handle)) == 0) {
+                                for (Interface i : cfg.iface()) {
+                                    for (InterfaceDescriptor id : i.altsetting()) {
+                                        System.out.println(LibUsb.getStringDescriptor(handle, id.iInterface()));
+                                    }
+                                }
+                                LibUsb.close(handle);
+                            } else {
+                                switch (err) {
+                                    case LibUsb.ERROR_ACCESS:
+                                        System.out.println("No access to open.");
+                                        break;
+                                    case LibUsb.ERROR_NO_MEM:
+                                        System.out.println("Could not allocate memory.");
+                                        break;
+                                    case LibUsb.ERROR_NO_DEVICE:
+                                        System.out.println("Device is gone.");
+                                        break;
+                                }
+                            }
+                        } else {
+                            if (err == LibUsb.ERROR_NOT_FOUND) {
+                                System.out.println("Device is ot configured.");
+                            } else {
+                                System.out.println("Unknown error: code " + err);
+                            }
                         }
                     }
-                    LibUsb.close(handle);
                 }
                 if (event == LibUsb.HOTPLUG_EVENT_DEVICE_LEFT) {
                     DeviceDescriptor desc = new DeviceDescriptor();
