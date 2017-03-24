@@ -7,9 +7,6 @@ import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/**
- * Created by mrenouf on 3/14/17.
- */
 public class UdevRulesParser {
 
     public static void parse(String file) throws IOException {
@@ -36,7 +33,7 @@ public class UdevRulesParser {
             }
         }
 
-        public void dump() {
+        void dump() {
             System.out.println("LABELS: " + labels);
             for (Rule rule : rules) {
                 System.out.println("RULE: " + rule);
@@ -161,14 +158,14 @@ public class UdevRulesParser {
     }
 
 
-    public static void parse(InputStream input) throws IOException {
+    private static void parse(InputStream input) throws IOException {
         Objects.requireNonNull(input, "input must be non-null");
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
             parse(reader);
         }
     }
 
-    public static void parse(BufferedReader reader) throws IOException {
+    private static void parse(BufferedReader reader) throws IOException {
         RuleList list = new RuleList();
         String line;
         String preceedingComment = null;
@@ -189,9 +186,9 @@ public class UdevRulesParser {
         list.dump();
     }
 
-    private static Rule parseRule(String preceedingComment, String substring) {
+    private static Rule parseRule(String precedingComment, String substring) {
         Rule rule = new Rule();
-        rule.comment = preceedingComment;
+        rule.comment = precedingComment;
         for (String token : Splitter.on(',').split(substring)) {
             parseToken(rule, token.trim());
         }
