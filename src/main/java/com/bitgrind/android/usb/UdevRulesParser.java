@@ -182,6 +182,7 @@ public class UdevRulesParser {
                     break;
                 }
                 list.append(parseRule(preceedingComment, line.substring(i)));
+                preceedingComment = null;
                 break;
             }
         }
