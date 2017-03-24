@@ -1,12 +1,10 @@
 package com.bitgrind.android.usb;
 
 import com.google.common.base.Splitter;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.*;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Scanner;
-import java.util.regex.Matcher;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -20,6 +18,155 @@ public class UdevRulesParser {
         }
     }
 
+    static class RuleList {
+        Map<String, Rule> labels;
+        Rule head;
+        Rule tail;
+
+        RuleList() {
+             labels = new HashMap<>();
+        }
+
+        void append(Rule rule) {
+            for (Assignment a : rule.assigments) {
+                if (a.key == Key.LABEL) {
+                    labels.put(a.value, rule);
+                }
+            }
+            if (head == null) {
+                head = rule;
+            }
+            if (tail != null) {
+                tail.next = rule;
+            }
+            tail = rule;
+        }
+
+        public void dump() {
+            System.out.println("LABELS: " + labels);
+            for (Rule rule = head; rule.next != null; rule = rule.next) {
+                System.out.println("RULE: " + rule);
+            }
+        }
+    }
+
+    static class Rule {
+        String comment;
+        List<Matcher> matchers;
+        List<Assignment> assigments;
+        Rule next;
+
+        Rule() {
+            matchers = new ArrayList<>();
+            assigments = new ArrayList<>();
+        }
+
+        @Override
+        public String toString() {
+            return "Rule{" +
+                    "comment=" + comment +
+                    ", matchers=" + matchers +
+                    ", assigments=" + assigments +
+                    '}';
+        }
+    }
+
+    Map<String, Rule> labels = new HashMap<>();
+    List<String> symlink = new ArrayList<>();
+    String mode;
+    String group;
+    Map<String, String> attr = new HashMap<>();
+
+    enum Type {
+        MATCH,
+        ASSIGNMENT
+    }
+
+    enum Key {
+        ACTION,
+        SUBSYSTEM,
+        ATTR,
+        ENV,
+        GOTO,
+        LABEL,
+        SYMLINK,
+        MODE,
+        GROUP,
+        TAG
+    }
+
+    static class Expression {
+        Key key;
+        String qualifer;
+        Operator op;
+        String value;
+
+        Expression(String key, @Nullable String qualifier, Operator op,  String value) {
+            this.key = Key.valueOf(key);
+            this.qualifer = qualifier;
+            this.op = op;
+            this.value = value;
+        }
+    }
+
+    static class Matcher extends Expression {
+        Matcher(String key, @Nullable String qualifier, Operator op, String value) {
+            super(key, qualifier, op, value);
+        }
+
+        @Override
+        public String toString() {
+            return "Matcher{key=" + key + ", qualifer=" + qualifer + ", op=" + op + ", value=" + value + "}";
+        }
+    }
+
+    static class Assignment extends Expression {
+        Assignment(String key, @Nullable String qualifier, Operator op, String value) {
+            super(key, qualifier, op, value);
+        }
+
+        @Override
+        public String toString() {
+            return "Assignment{key=" + key + ", qualifer=" + qualifer + ", op=" + op + ", value=" + value + "}";
+        }
+    }
+
+    enum Operator {
+        APPEND("+=", Type.ASSIGNMENT),
+        ASSIGN("=", Type.ASSIGNMENT),
+        IS_EQUAL("==", Type.MATCH),
+        NOT_EQUAL("!=", Type.MATCH);
+
+        private static final Map<String, Operator> map = new HashMap<>();
+
+        static {
+            for (Operator op : Operator.values()) {
+                map.put(op.value, op);
+            }
+        }
+
+        private final String value;
+        private final Type type;
+
+        Operator(String value, Type type) {
+            this.value = value;
+            this.type = type;
+        }
+
+        public Type type() {
+            return type;
+        }
+
+        public static Operator fromString(String value) {
+            if (!map.containsKey(value)) {
+                throw new IllegalArgumentException();
+            }
+            return map.get(value);
+        }
+
+    }
+
+
     public static void parse(InputStream input) throws IOException {
         Objects.requireNonNull(input, "input must be non-null");
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
@@ -28,6 +175,7 @@ public class UdevRulesParser {
     }
 
     public static void parse(BufferedReader reader) throws IOException {
+        RuleList list = new RuleList();
         String line;
         String preceedingComment = null;
         while ((line = reader.readLine()) != null) {
@@ -36,39 +184,44 @@ public class UdevRulesParser {
                     continue;
                 }
                 if (line.charAt(i) == '#') {
-                    preceedingComment = line.substring(i+1);
+                    preceedingComment = line.substring(i+1).trim();
                     break;
                 }
-                parseRule(preceedingComment, line.substring(i));
+                list.append(parseRule(preceedingComment, line.substring(i)));
                 break;
             }
         }
+        list.dump();
     }
 
-    private static void parseRule(String preceedingComment, String substring) {
+    private static Rule parseRule(String preceedingComment, String substring) {
+        Rule rule = new Rule();
+        rule.comment = preceedingComment;
         for (String token : Splitter.on(',').split(substring)) {
-            parseToken(token.trim());
+            parseToken(rule, token.trim());
         }
+        return rule;
     }
     private static final Pattern UDEV_RULE =
             Pattern.compile("^([A-Z]+)(\\{[A-Za-z0-9_]+})?((?:!|\\+|=)?=)\"([^\"]+)\"$");
 
-    private static void parseToken(String token) {
-        Matcher matcher = UDEV_RULE.matcher(token);
+    private static void parseToken(Rule rule, String token) {
+        java.util.regex.Matcher matcher = UDEV_RULE.matcher(token);
         if (matcher.matches()) {
-            for (int i = 1; i <= matcher.groupCount(); i++)
-            System.out.format("group[%d]: %s\n",i,matcher.group(i));
+            String key = matcher.group(1);
+            String qual = matcher.group(2);
+            Operator op = Operator.fromString(matcher.group(3));
+            String value = matcher.group(4);
+            switch (op.type()) {
+                case MATCH:
+                    rule.matchers.add(new Matcher(key, qual, op, value));
+                    break;
+                case ASSIGNMENT:
+                    rule.assigments.add(new Assignment(key, qual, op, value));
+                    break;
+            }
         }
-        System.out.println();
     }
-
-    interface Operator {
-        void apply(String value);
-    }
-
-    abstract class Append implements Operator {}
-    abstract class Assign implements Operator {}
-    abstract class Compare implements Operator {}
 
     public static void main(String[] args) throws IOException {
         parse(UdevRulesParser.class.getResourceAsStream("udev_rules.txt"));
