@@ -19,32 +19,26 @@ public class UdevRulesParser {
     }
 
     static class RuleList {
-        Map<String, Rule> labels;
-        Rule head;
-        Rule tail;
+        Map<String, Integer> labels;
+        List<Rule> rules;
 
         RuleList() {
              labels = new HashMap<>();
+             rules = new ArrayList<>();
         }
 
         void append(Rule rule) {
+            rules.add(rule);
             for (Assignment a : rule.assigments) {
                 if (a.key == Key.LABEL) {
-                    labels.put(a.value, rule);
+                    labels.put(a.value, rules.size());
                 }
             }
-            if (head == null) {
-                head = rule;
-            }
-            if (tail != null) {
-                tail.next = rule;
-            }
-            tail = rule;
         }
 
         public void dump() {
             System.out.println("LABELS: " + labels);
-            for (Rule rule = head; rule.next != null; rule = rule.next) {
+            for (Rule rule : rules) {
                 System.out.println("RULE: " + rule);
             }
         }
