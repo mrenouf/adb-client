@@ -5,9 +5,6 @@ import org.usb4java.*;
 import java.io.FileDescriptor;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Created by mrenouf on 3/14/17.
- */
 public class UsbTest {
     public static void main(String[] args) throws InterruptedException {
         Context context = new Context();

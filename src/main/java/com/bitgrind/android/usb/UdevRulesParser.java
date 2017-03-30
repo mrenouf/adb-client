@@ -1,5 +1,6 @@
 package com.bitgrind.android.usb;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -8,16 +9,7 @@ import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/**
- * Created by mrenouf on 3/14/17.
- */
 public class UdevRulesParser {
-
-    public static void parse(String file) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)))) {
-            parse(reader);
-        }
-    }
 
     static class State {
         Map<String, String> env = new HashMap<>();
@@ -85,6 +77,9 @@ public class UdevRulesParser {
                             throw new IllegalStateException("Bad operator for assignment: "
                                 + assignment.op);
                     }
+                case MODE:
+                    // TODO
+                    break;
                 case LABEL:
                     // Nothing to do
                     break;
@@ -104,19 +99,16 @@ public class UdevRulesParser {
         }
     }
 
-    static void evaluate(State state, RuleList rules) {
+    private static void evaluate(State state, RuleList rules) {
         next_rule:
         for (int i = 0; i < rules.rules.size(); i++) {
             Rule rule = rules.rules.get(i);
-            System.out.println("[" + i + "] " + rule);
             for (Matcher m : rule.matchers) {
                 if (!state.evaluateMatcher(m)) {
                     continue next_rule;
                 }
             }
-            System.out.println("match");
             for (Assignment a : rule.assigments) {
-                System.out.println(a);
                 state.evaluateAssignment(rules, a);
             }
             if (state.gotoRule >= 0) {
@@ -143,20 +135,12 @@ public class UdevRulesParser {
                 }
             }
         }
-
-        public void dump() {
-            System.out.println("LABELS: " + labels);
-            for (Rule rule : rules) {
-                System.out.println("RULE: " + rule);
-            }
-        }
     }
 
     static class Rule {
         String comment;
         List<Matcher> matchers;
         List<Assignment> assigments;
-        Rule next;
 
         Rule() {
             matchers = new ArrayList<>();
@@ -172,12 +156,6 @@ public class UdevRulesParser {
                     '}';
         }
     }
-
-    Map<String, Rule> labels = new HashMap<>();
-    List<String> symlink = new ArrayList<>();
-    String mode;
-    String group;
-    Map<String, String> attr = new HashMap<>();
 
     enum Type {
         MATCH,
@@ -281,14 +259,14 @@ public class UdevRulesParser {
     }
 
 
-    public static RuleList parse(InputStream input) throws IOException {
+    private static RuleList parse(InputStream input) throws IOException {
         Objects.requireNonNull(input, "input must be non-null");
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
             return parse(reader);
         }
     }
 
-    public static RuleList parse(BufferedReader reader) throws IOException {
+    private static RuleList parse(BufferedReader reader) throws IOException {
         RuleList list = new RuleList();
         String line;
         String preceedingComment = null;
@@ -340,20 +318,40 @@ public class UdevRulesParser {
     }
 
     public static void main(String[] args) throws IOException {
-        State state = new State();
+
         //state.setAttr("idVendor", "0502");
         //state.setAttr("idProduct", "3604");
 //        state.setAttr("idVendor", "18d1");
 //        state.setAttr("idProduct", "4ee1");
-        state.setAttr("idVendor", "0c2e");
-        state.setAttr("idProduct", "0ba3");
 
 
         RuleList list = parse(UdevRulesParser.class.getResourceAsStream("udev_rules.txt"));
-        evaluate(state, list);
-        System.out.println(state.symlink);
-        System.out.println(state.env);
-        System.out.println(state.tag);
-        System.out.println(state.group);
+
+        List<UsbIdsLoader.UsbId> androidDevices = new ArrayList<>();
+        List<UsbIdsLoader.UsbId> androidAdbDevices = new ArrayList<>();
+        List<UsbIdsLoader.UsbId> androidFastbootDevices = new ArrayList<>();
+
+        for (UsbIdsLoader.UsbId id : UsbIdsLoader.usbIds()) {
+            State state = new State();
+            state.setAttr("idProduct",  String.format("%04x", id.productId));
+            state.setAttr("idVendor",  String.format("%04x", id.vendorId));
+            evaluate(state, list);
+            if (state.symlink.contains("android")) {
+                androidDevices.add(id);
+            }
+            if (state.symlink.contains("android_fastboot")) {
+                androidFastbootDevices.add(id);
+            }
+            if (state.symlink.contains("android_adb")) {
+                androidAdbDevices.add(id);
+            }
+        }
+
+        System.out.println("android\n    " + Joiner.on("\n    ").join(androidDevices));
+        System.out.println();
+        System.out.println("adb    \n    " + Joiner.on("\n    ").join(androidAdbDevices));
+        System.out.println();
+        System.out.println("fastboot\n    " + Joiner.on("\n    ").join(androidFastbootDevices));
+        System.out.println();
     }
 }
