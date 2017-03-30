@@ -22,15 +22,19 @@ public class UsbTest {
                 if (event == LibUsb.HOTPLUG_EVENT_DEVICE_ARRIVED) {
                     DeviceDescriptor desc = new DeviceDescriptor();
                     if (LibUsb.getDeviceDescriptor(device, desc) == 0) {
-                        System.out.format("----------%04x %04x----------", desc.idVendor(), desc.idProduct());
+                        System.out.format("----------%04x %04x----------\n", desc.idVendor(), desc.idProduct());
                         ConfigDescriptor cfg = new ConfigDescriptor();
                         int err;
                         if ((err = LibUsb.getActiveConfigDescriptor(device, cfg)) == 0) {
                             DeviceHandle handle = new DeviceHandle();
                             if ((err = LibUsb.open(device, handle)) == 0) {
+                                System.out.println(LibUsb.getStringDescriptor(handle, desc.iManufacturer()));
+                                System.out.println(LibUsb.getStringDescriptor(handle, desc.iProduct()));
+
                                 for (Interface i : cfg.iface()) {
                                     for (InterfaceDescriptor id : i.altsetting()) {
-                                        System.out.println(LibUsb.getStringDescriptor(handle, id.iInterface()));
+                                        System.out.println(id.dump());
+                                        //System.out.println(LibUsb.getStringDescriptor(handle, id.iInterface()));
                                     }
                                 }
                                 LibUsb.close(handle);

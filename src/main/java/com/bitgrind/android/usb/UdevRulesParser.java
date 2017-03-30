@@ -1,12 +1,16 @@
 package com.bitgrind.android.usb;
 
 import com.google.common.base.Splitter;
+import com.google.common.collect.Lists;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
+/**
+ * Created by mrenouf on 3/14/17.
+ */
 public class UdevRulesParser {
 
     public static void parse(String file) throws IOException {
@@ -15,13 +19,120 @@ public class UdevRulesParser {
         }
     }
 
+    static class State {
+        Map<String, String> env = new HashMap<>();
+        Map<String, String> attr = new HashMap<>();
+        List<String> symlink = new ArrayList<>();
+        List<String> tag = new ArrayList<>();
+        Map<Key, String> keyValues = new HashMap<>();
+        int gotoRule = -1;
+        List<String> group = new ArrayList<>();
+
+        State() {
+            keyValues.put(Key.SUBSYSTEM, "usb");
+            keyValues.put(Key.ACTION, "add");
+        }
+
+        void setAttr(String name, String value) {
+            attr.put(name, value);
+        }
+
+        boolean evaluateMatcher(Matcher matcher) {
+            switch (matcher.key) {
+                case SUBSYSTEM:
+                    return matcher.op.eval(Objects.toString(keyValues.get(Key.SUBSYSTEM), ""), matcher.value);
+                case ATTR:
+                    return matcher.op.eval(Objects.toString(attr.get(matcher.qualifier), ""), matcher.value);
+                case ACTION:
+                    return matcher.op.eval(Objects.toString(keyValues.get(Key.ACTION), ""), matcher.value);
+                case ENV:
+                    return matcher.op.eval(Objects.toString(env.get(matcher.qualifier), ""), matcher.value);
+            }
+            return false;
+        }
+
+        void evaluateAssignment(RuleList list, Assignment assignment) {
+            switch (assignment.key) {
+                case SYMLINK:
+                    if (assignment.op == Operator.ASSIGN) {
+                        symlink = Lists.newArrayList(assignment.value);
+                    } else {
+                        symlink.add(assignment.value);
+                    }
+                    break;
+                case ENV:
+                    if (assignment.op == Operator.ASSIGN) {
+                        env.put(assignment.qualifier, assignment.value);
+                    } else {
+                        throw new IllegalStateException("Can't append to ENV values");
+                    }
+                    break;
+                case GOTO:
+                    if (assignment.op == Operator.ASSIGN) {
+                        gotoRule = list.labels.get(assignment.value);
+                    } else {
+                        throw new IllegalStateException("Can't append to GOTO");
+                    }
+                case GROUP:
+                    switch (assignment.op) {
+                        case ASSIGN:
+                            group = Lists.newArrayList(assignment.value);
+                            break;
+                        case APPEND:
+                            group.add(assignment.value);
+                            break;
+                        default:
+                            throw new IllegalStateException("Bad operator for assignment: "
+                                + assignment.op);
+                    }
+                case LABEL:
+                    // Nothing to do
+                    break;
+                case TAG:
+                    switch (assignment.op) {
+                        case ASSIGN:
+                            tag = Lists.newArrayList(assignment.value);
+                            break;
+                        case APPEND:
+                            tag.add(assignment.value);
+                            break;
+                        default:
+                            throw new IllegalStateException("Bad operator for assignment: "
+                                + assignment.op);
+                    }
+            }
+        }
+    }
+
+    static void evaluate(State state, RuleList rules) {
+        next_rule:
+        for (int i = 0; i < rules.rules.size(); i++) {
+            Rule rule = rules.rules.get(i);
+            System.out.println("[" + i + "] " + rule);
+            for (Matcher m : rule.matchers) {
+                if (!state.evaluateMatcher(m)) {
+                    continue next_rule;
+                }
+            }
+            System.out.println("match");
+            for (Assignment a : rule.assigments) {
+                System.out.println(a);
+                state.evaluateAssignment(rules, a);
+            }
+            if (state.gotoRule >= 0) {
+                i = (state.gotoRule - 1);
+                state.gotoRule = -1;
+
+            }
+        }
+    }
+
     static class RuleList {
-        Map<String, Integer> labels;
-        List<Rule> rules;
+        Map<String, Integer> labels = new HashMap<>();
+        List<Rule> rules = new ArrayList<>();
 
         RuleList() {
              labels = new HashMap<>();
-             rules = new ArrayList<>();
         }
 
         void append(Rule rule) {
@@ -33,7 +144,7 @@ public class UdevRulesParser {
             }
         }
 
-        void dump() {
+        public void dump() {
             System.out.println("LABELS: " + labels);
             for (Rule rule : rules) {
                 System.out.println("RULE: " + rule);
@@ -88,13 +199,13 @@ public class UdevRulesParser {
 
     static class Expression {
         Key key;
-        String qualifer;
+        String qualifier;
         Operator op;
         String value;
 
         Expression(String key, @Nullable String qualifier, Operator op,  String value) {
             this.key = Key.valueOf(key);
-            this.qualifer = qualifier;
+            this.qualifier = qualifier;
             this.op = op;
             this.value = value;
         }
@@ -107,7 +218,7 @@ public class UdevRulesParser {
 
         @Override
         public String toString() {
-            return "Matcher{key=" + key + ", qualifer=" + qualifer + ", op=" + op + ", value=" + value + "}";
+            return "Matcher{key=" + key + ", qualifier=" + qualifier + ", op=" + op + ", value=" + value + "}";
         }
     }
 
@@ -118,15 +229,23 @@ public class UdevRulesParser {
 
         @Override
         public String toString() {
-            return "Assignment{key=" + key + ", qualifer=" + qualifer + ", op=" + op + ", value=" + value + "}";
+            return "Assignment{key=" + key + ", qualifier=" + qualifier + ", op=" + op + ", value=" + value + "}";
         }
     }
 
     enum Operator {
         APPEND("+=", Type.ASSIGNMENT),
         ASSIGN("=", Type.ASSIGNMENT),
-        IS_EQUAL("==", Type.MATCH),
-        NOT_EQUAL("!=", Type.MATCH);
+        IS_EQUAL("==", Type.MATCH) {
+            boolean eval(String a, String b) {
+                return a.equals(b);
+            }
+        },
+        NOT_EQUAL("!=", Type.MATCH) {
+            boolean eval(String a, String b) {
+                return !a.equals(b);
+            }
+        };
 
         private static final Map<String, Operator> map = new HashMap<>();
 
@@ -144,6 +263,10 @@ public class UdevRulesParser {
             this.type = type;
         }
 
+        boolean eval(String a, String b) {
+            return false;
+        }
+
         public Type type() {
             return type;
         }
@@ -158,14 +281,14 @@ public class UdevRulesParser {
     }
 
 
-    private static void parse(InputStream input) throws IOException {
+    public static RuleList parse(InputStream input) throws IOException {
         Objects.requireNonNull(input, "input must be non-null");
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
-            parse(reader);
+            return parse(reader);
         }
     }
 
-    private static void parse(BufferedReader reader) throws IOException {
+    public static RuleList parse(BufferedReader reader) throws IOException {
         RuleList list = new RuleList();
         String line;
         String preceedingComment = null;
@@ -183,19 +306,20 @@ public class UdevRulesParser {
                 break;
             }
         }
-        list.dump();
+        //list.dump();
+        return list;
     }
 
-    private static Rule parseRule(String precedingComment, String substring) {
+    private static Rule parseRule(String preceedingComment, String substring) {
         Rule rule = new Rule();
-        rule.comment = precedingComment;
+        rule.comment = preceedingComment;
         for (String token : Splitter.on(',').split(substring)) {
             parseToken(rule, token.trim());
         }
         return rule;
     }
     private static final Pattern UDEV_RULE =
-            Pattern.compile("^([A-Z]+)(\\{[A-Za-z0-9_]+})?((?:!|\\+|=)?=)\"([^\"]+)\"$");
+            Pattern.compile("^([A-Z]+)(?:\\{([A-Za-z0-9_]+)})?((?:!|\\+|=)?=)\"([^\"]+)\"$");
 
     private static void parseToken(Rule rule, String token) {
         java.util.regex.Matcher matcher = UDEV_RULE.matcher(token);
@@ -216,6 +340,20 @@ public class UdevRulesParser {
     }
 
     public static void main(String[] args) throws IOException {
-        parse(UdevRulesParser.class.getResourceAsStream("udev_rules.txt"));
+        State state = new State();
+        //state.setAttr("idVendor", "0502");
+        //state.setAttr("idProduct", "3604");
+//        state.setAttr("idVendor", "18d1");
+//        state.setAttr("idProduct", "4ee1");
+        state.setAttr("idVendor", "0c2e");
+        state.setAttr("idProduct", "0ba3");
+
+
+        RuleList list = parse(UdevRulesParser.class.getResourceAsStream("udev_rules.txt"));
+        evaluate(state, list);
+        System.out.println(state.symlink);
+        System.out.println(state.env);
+        System.out.println(state.tag);
+        System.out.println(state.group);
     }
 }
